@@ -1,8 +1,8 @@
 from util import *
 import nltk
-nltk.download('punkt')
-nltk.download('wordnet')
-nltk.download('omw-1.4')
+nltk.download('punkt',quiet=True)											#update: used quite=True to suppress print'already- updated, remove it in case
+nltk.download('wordnet',quiet=True)											#of any error.
+nltk.download('omw-1.4',quiet=True)
 import nltk.tokenize as token
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize

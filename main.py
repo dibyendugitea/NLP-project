@@ -4,7 +4,9 @@ from inflectionReduction import InflectionReduction
 from stopwordRemoval import StopwordRemoval
 from informationRetrieval import InformationRetrieval
 from evaluation import Evaluation
-
+from sbert import s_bert
+from lsa import l_sa
+import pickle
 import time
 
 from sys import version_info
@@ -12,7 +14,7 @@ import argparse
 import json
 import matplotlib.pyplot as plt
 
-# Input compatibility for Python 2 and Python 3
+# Input compatibility for Python 2 and Python 3	
 if version_info.major == 3:
     pass
 elif version_info.major == 2:
@@ -23,7 +25,6 @@ elif version_info.major == 2:
 else:
     print ("Unknown python version - input function not safe")
 
-start=time.time()
 
 class SearchEngine:
 
@@ -34,11 +35,11 @@ class SearchEngine:
 		self.sentenceSegmenter = SentenceSegmentation()
 		self.inflectionReducer = InflectionReduction()
 		self.stopwordRemover = StopwordRemoval()
-
 		self.informationRetriever = InformationRetrieval()
 		self.evaluator = Evaluation()
 
-
+	# def s_bert(self, query,docs):
+	# 	return self. sbertapplied(query,docs)
 	def segmentSentences(self, text):
 		"""
 		Call the required sentence segmenter
@@ -68,6 +69,7 @@ class SearchEngine:
 		Call the required stopword remover
 		"""
 		return self.stopwordRemover.fromList(text)
+
 
 
 	def preprocessQueries(self, queries):
@@ -203,12 +205,13 @@ class SearchEngine:
 		plt.xlabel("k")
 		plt.savefig(args.out_folder + "eval_plot.png")
 
-		
+	
 	def handleCustomQuery(self):
 		"""
 		Take a custom query as input and return top five relevant documents
 		"""
-
+		print('Enter query id below')
+		q=int(input())
 		#Get query
 		print("Enter query below")
 		query = input()
@@ -220,19 +223,73 @@ class SearchEngine:
 		doc_ids, docs = [item["id"] for item in docs_json], \
 							[item["body"] for item in docs_json]
 		# Process documents
-		processedDocs = self.preprocessDocs(docs)
+		# processedDocs = self.preprocessDocs(docs)
+		try:
+			with open("stopword_removed.txt", "rb") as fp:  # Unpickling to avoid reruning the code
+				processedDocs = pickle.load(fp)
+		except EOFError:
+			processedDocs = self.preprocessDocs(docs)
+			with open("stopword_removed.txt", "wb") as fp:  # Pickling
+				pickle.dump(processedDocs, fp)
+		# print(processedQuery)
+		# print(' '.join(processedQuery[0]))
+		l=l_sa(' '.join(processedQuery[0]),docs)
 
 		# Build document index
-		self.informationRetriever.buildIndex(processedDocs, doc_ids)
-		# Rank the documents for the query
-		doc_IDs_ordered = self.informationRetriever.rank([processedQuery])[0]
+		# self.informationRetriever.buildIndex(processedDocs, doc_ids)
+		# # Rank the documents for the query
+		# doc_IDs_ordered = self.informationRetriever.rank([processedQuery])[0]
+		# #Print the IDs of first five documents
+		# print("\nTop five document IDs : ")
+		# for id_ in doc_IDs_ordered[:5]:
+		# 	print(id_)
 
-		# Print the IDs of first five documents
-		print("\nTop five document IDs : ")
-		for id_ in doc_IDs_ordered[:5]:
-			print(id_)
+		# # sb=s_bert(processedQuery,docs)
 
+		# #ls=l_sa(processedered)
+		# # print(sb[:len(doc_IDs_ordered)])
+		# #Read queries
+		# queries_json = json.load(open(args.dataset + "cran_queries.json", 'r'))[:]
+		# query_ids, queries = [q],[query]
+		# doc_IDs_ordered=[doc_IDs_ordered]
+		# # Read relevance judements
+		# qrels = json.load(open(args.dataset + "cran_qrels.json", 'r'))[:]
+		# # Calculate precision, recall, f-score, MAP and nDCG for k = 1 to 10
+		# precisions, recalls, fscores, MAPs, nDCGs = [], [], [], [], []
+		# for k in range(1, 11):
+		# 	precision = self.evaluator.meanPrecision(
+		# 		doc_IDs_ordered, query_ids, qrels, k)
+		# 	precisions.append(precision)
+		# 	recall = self.evaluator.meanRecall(
+		# 		doc_IDs_ordered, query_ids, qrels, k)
+		# 	recalls.append(recall)
+		# 	fscore = self.evaluator.meanFscore(
+		# 		doc_IDs_ordered, query_ids, qrels, k)
+		# 	fscores.append(fscore)
+		# 	print("Precision, Recall and F-score @ " +  
+		# 		str(k) + " : " + str(precision) + ", " + str(recall) + 
+		# 		", " + str(fscore))
+		# 	MAP = self.evaluator.meanAveragePrecision(
+		# 		doc_IDs_ordered, query_ids, qrels, k)
+		# 	MAPs.append(MAP)
+		# 	nDCG = self.evaluator.meanNDCG(
+		# 		doc_IDs_ordered, query_ids, qrels, k)
+		# 	nDCGs.append(nDCG)
+		# 	print("MAP, nDCG @ " +  
+		# 		str(k) + " : " + str(MAP) + ", " + str(nDCG))
 
+		# # Plot the metrics and save plot 
+		# plt.plot(range(1, 11), precisions, label="Precision")
+		# plt.plot(range(1, 11), recalls, label="Recall")
+		# plt.plot(range(1, 11), fscores, label="F-Score")
+		# plt.plot(range(1, 11), MAPs, label="MAP")
+		# plt.plot(range(1, 11), nDCGs, label="nDCG")
+		# plt.legend()
+		# plt.title("Evaluation Metrics - Cranfield Dataset")
+		# plt.xlabel("k")
+		# plt.savefig(args.out_folder + "eval_plot.png")
+		# plt.show()
+		
 
 if __name__ == "__main__":
 
@@ -262,6 +319,5 @@ if __name__ == "__main__":
 		searchEngine.handleCustomQuery()
 	else:
 		searchEngine.evaluateDataset()
-	end=time.time()
-	print('time taken:\t %f ms'%(end-start)*1000)
+
 
