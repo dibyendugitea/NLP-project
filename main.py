@@ -14,6 +14,8 @@ import argparse
 import json
 import matplotlib.pyplot as plt
 from plsa import p_lsa
+from lsa1 import LSA
+import pandas as pd
 
 # Input compatibility for Python 2 and Python 3	
 if version_info.major == 3:
@@ -172,10 +174,11 @@ class SearchEngine:
 		# print(processedQueries[0])
 		# print(np.shape(processedQueries))
 
-		doc_IDs_ordered=[]
-		for queri in processedQueries:
-			doc_IDs_ordered.append(l_sa(queri[0],processedDocs))
+		# doc_IDs_ordered=[]
+		# for queri in processedQueries:
+		# 	doc_IDs_ordered.append(l_sa(queri[0],processedDocs))
 
+		
 
 		# doc_IDs_ordered=[]
 		# for queri in processedQueries:
@@ -272,9 +275,32 @@ class SearchEngine:
 		# sb=s_bert(processedQuery,processedDocs,docs[0])
 		# print(sb)
 		# ls=l_sa(processedQuery,processedDocs)
-		self=p_lsa()
-		pl=self.PLSA(5,10,processedQuery,processedDocs)
-		print(pl)
+		# self=p_lsa()
+		# pl=self.PLSA(5,10,processedQuery,processedDocs)
+		# print(pl)
+		lsa=LSA()
+		# docs_df=pd.DataFrame(processedDocs)
+		# queries_df=pd.DataFrame(processedQuery)
+		# print(docs_df)
+		qrels = json.load(open(args.dataset + "cran_qrels.json", 'r'))[:]
+		# processedDocs=[' '.join(np.concatenate(item)) if item else '' for item in processedDocs]
+		# processedQuery=[' '.join(processedQuery[0])]
+		docs_df = pd.read_json('cranfield/cran_docs.json')
+		docs_df.at[470, 'body'] = "<UNK>"
+		docs_df.at[994, 'body'] = "<UNK>"
+		queries_df = pd.read_json('cranfield/cran_queries.json')
+		tf_idf = lsa.get_tfidf_matrices(docs_df['body'], queries_df['query'],)
+		docs = tf_idf['documents']
+		queries = tf_idf['queries']
+
+		docs_final, query_final = lsa.perform_svd(docs, queries, 500)
+
+		ranked = lsa.rank_docs(docs_final, query_final)
+
+		precisions, recalls, fscores, MAPs, nDCGs = lsa.calculate_metrics(ranked, qrels)
+
+		lsa.plot_metrics(precisions, recalls, fscores, MAPs, nDCGs)
+
 		# # print(sb[:len(doc_IDs_ordered)])
 		# #Read queries
 		# queries_json = json.load(open(args.dataset + "cran_queries.json", 'r'))[:]
