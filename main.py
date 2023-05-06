@@ -8,11 +8,12 @@ from sbert import s_bert
 from lsa import l_sa
 import pickle
 import time
-
+import numpy as np
 from sys import version_info
 import argparse
 import json
 import matplotlib.pyplot as plt
+from plsa import p_lsa
 
 # Input compatibility for Python 2 and Python 3	
 if version_info.major == 3:
@@ -162,10 +163,25 @@ class SearchEngine:
 		# Process documents
 		processedDocs = self.preprocessDocs(docs)
 
-		# Build document index
-		self.informationRetriever.buildIndex(processedDocs, doc_ids)
-		# Rank the documents for each query
-		doc_IDs_ordered = self.informationRetriever.rank(processedQueries)
+		# # Build document index
+		# self.informationRetriever.buildIndex(processedDocs, doc_ids)
+		# # Rank the documents for each query
+		# doc_IDs_ordered = self.informationRetriever.rank(processedQueries)
+		# print(np.shape(doc_IDs_ordered))
+		# print(doc_IDs_ordered )
+		# print(processedQueries[0])
+		# print(np.shape(processedQueries))
+
+		doc_IDs_ordered=[]
+		for queri in processedQueries:
+			doc_IDs_ordered.append(l_sa(queri[0],processedDocs))
+
+
+		# doc_IDs_ordered=[]
+		# for queri in processedQueries:
+		# 	doc_IDs_ordered.append(s_bert(queri[0],processedDocs))
+		# print(doc_IDs_ordered,np.shape(doc_IDs_ordered))
+
 
 		# Read relevance judements
 		qrels = json.load(open(args.dataset + "cran_qrels.json", 'r'))[:]
@@ -210,18 +226,27 @@ class SearchEngine:
 		"""
 		Take a custom query as input and return top five relevant documents
 		"""
-		print('Enter query id below')
-		q=int(input())
+		# print('Enter query id below')
+		# q=int(input())
+		q=1
 		#Get query
-		print("Enter query below")
-		query = input()
+		# print("Enter query below")
+		# query = input()
 		# Process documents
-		processedQuery = self.preprocessQueries([query])[0]
 
+		
+		# print(processedQuery)
 		# Read documents
 		docs_json = json.load(open(args.dataset + "cran_docs.json", 'r'))[:]
 		doc_ids, docs = [item["id"] for item in docs_json], \
 							[item["body"] for item in docs_json]
+		# Read queries
+		queries_json = json.load(open(args.dataset + "cran_queries.json", 'r'))[:]
+		query_ids, queries = [item["query number"] for item in queries_json], \
+								[item["query"] for item in queries_json]
+		query=queries[q-1]
+		# print(query)
+		processedQuery = self.preprocessQueries([query])[0]
 		# Process documents
 		# processedDocs = self.preprocessDocs(docs)
 		try:
@@ -233,7 +258,7 @@ class SearchEngine:
 				pickle.dump(processedDocs, fp)
 		# print(processedQuery)
 		# print(' '.join(processedQuery[0]))
-		l=l_sa(' '.join(processedQuery[0]),docs)
+		# l=l_sa(' '.join(processedQuery[0]),docs)
 
 		# Build document index
 		# self.informationRetriever.buildIndex(processedDocs, doc_ids)
@@ -244,14 +269,18 @@ class SearchEngine:
 		# for id_ in doc_IDs_ordered[:5]:
 		# 	print(id_)
 
-		# # sb=s_bert(processedQuery,docs)
-
-		# #ls=l_sa(processedered)
+		# sb=s_bert(processedQuery,processedDocs,docs[0])
+		# print(sb)
+		# ls=l_sa(processedQuery,processedDocs)
+		self=p_lsa()
+		pl=self.PLSA(5,10,processedQuery,processedDocs)
+		print(pl)
 		# # print(sb[:len(doc_IDs_ordered)])
 		# #Read queries
 		# queries_json = json.load(open(args.dataset + "cran_queries.json", 'r'))[:]
 		# query_ids, queries = [q],[query]
-		# doc_IDs_ordered=[doc_IDs_ordered]
+		# print(query_ids,queries)
+		# doc_IDs_ordered=[ls]
 		# # Read relevance judements
 		# qrels = json.load(open(args.dataset + "cran_qrels.json", 'r'))[:]
 		# # Calculate precision, recall, f-score, MAP and nDCG for k = 1 to 10
