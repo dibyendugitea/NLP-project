@@ -5,7 +5,7 @@ from stopwordRemoval import StopwordRemoval
 from informationRetrieval import InformationRetrieval
 from evaluation import Evaluation
 from sbert import s_bert
-from lsa1	 import LSA
+from lsa1 import LSA
 from lsa import l_sa
 import pickle
 import time
@@ -141,176 +141,63 @@ class SearchEngine:
 		preprocessedDocs = stopwordRemovedDocs
 		return preprocessedDocs
 
+	def metrices(self,doc_IDs_ordered, query_ids, qrels,ttl):
+		precisions, recalls, fscores, MAPs, nDCGs = [], [], [], [], []
 
-	def evaluateDataset(self):
-		"""
-		- preprocesses the queries and documents, stores in output folder
-		- invokes the IR system
-		- evaluates precision, recall, fscore, nDCG and MAP
-		  for all queries in the Cranfield dataset
-		- produces graphs of the evaluation metrics in the output folder
-		"""
+		for k in range(1, 11):
+			precision = self.evaluator.meanPrecision(
+				doc_IDs_ordered, query_ids, qrels, k)
+			precisions.append(precision)
+			recall = self.evaluator.meanRecall(
+				doc_IDs_ordered, query_ids, qrels, k)
+			recalls.append(recall)
+			fscore = self.evaluator.meanFscore(
+				doc_IDs_ordered, query_ids, qrels, k)
+			fscores.append(fscore)
+			print("Precision, Recall and F-score @ " +  
+				str(k) + " : " + str(precision) + ", " + str(recall) + 
+				", " + str(fscore))
+			MAP = self.evaluator.meanAveragePrecision(
+				doc_IDs_ordered, query_ids, qrels, k)
+			MAPs.append(MAP)
+			nDCG = self.evaluator.meanNDCG(
+				doc_IDs_ordered, query_ids, qrels, k)
+			nDCGs.append(nDCG)
+			print("MAP, nDCG @ " +  
+				str(k) + " : " + str(MAP) + ", " + str(nDCG))
 
-		# Read queries
-		queries_json = json.load(open(args.dataset + "cran_queries.json", 'r'))[:]
-		query_ids, queries = [item["query number"] for item in queries_json], \
-								[item["query"] for item in queries_json]
-		# Process queries
-		processedQueries = self.preprocessQueries(queries)
+		# Plot the metrics and save plot 
+		plt.plot(range(1, 11), precisions, label="Precision")
+		plt.plot(range(1, 11), recalls, label="Recall")
+		plt.plot(range(1, 11), fscores, label="F-Score")
+		plt.plot(range(1, 11), MAPs, label="MAP")
+		plt.plot(range(1, 11), nDCGs, label="nDCG")
+		plt.legend()
+		plt.title(ttl)
+		plt.xlabel("k")
+		plt.savefig(args.out_folder + ttl+".png")
+		plt.show()
 
-		# Read documents
-		docs_json = json.load(open(args.dataset + "cran_docs.json", 'r'))[:]
-		doc_ids, docs = [item["id"] for item in docs_json], \
-								[item["body"] for item in docs_json]
-		# Process documents
-		processedDocs = self.preprocessDocs(docs)
-		
-		doc_IDs_ordered=[]
-		if self.args.eval == "lsa":
-			for queri in processedQueries:
-				doc_IDs_ordered.append(l_sa(queri,processedDocs))
-		if self.args.eval == "plsa":
-			for queri in processedQueries:
-				doc_IDs_ordered.append(P_lsa.problsa(60,queri,processedDocs))
-		if self.args.eval == "s_bert":
+
+	def Sbert(self,processedQueries,processedDocs,query_ids,qrels): #,doc_ids, docs,queries_json,query_ids, queries,qrels):
+		try:
+			with open("pickle/sbert_docID.txt", "rb") as fp:  # Unpickling to avoid reruning the code
+				doc_IDs_ordered = pickle.load(fp)
+		except FileNotFoundError:
 			doc_IDs_ordered=[]
 			for queri in processedQueries:
-				doc_IDs_ordered.append(s_bert(queri,processedDocs))
+				doc_IDs_ordered.append(s_bert(queri[0],processedDocs))
+			with open("pickle/sbert_docID.txt", "wb") as fp:  # Pickling
+				pickle.dump(doc_IDs_ordered, fp)
 
-		if self.args.eval =="vsm":
-			self.informationRetriever.buildIndex(processedDocs, doc_ids)
-			doc_IDs_ordered = self.informationRetriever.rank(processedQueries)
+		self.metrices(doc_IDs_ordered, query_ids, qrels,'Evaluation of SBERT')
 
-
-		# Read relevance judements
-		qrels = json.load(open(args.dataset + "cran_qrels.json", 'r'))[:]
-
-		# Calculate precision, recall, f-score, MAP and nDCG for k = 1 to 10
-		precisions, recalls, fscores, MAPs, nDCGs = [], [], [], [], []
-		for k in range(1, 11):
-			precision = self.evaluator.meanPrecision(
-				doc_IDs_ordered, query_ids, qrels, k)
-			precisions.append(precision)
-			recall = self.evaluator.meanRecall(
-				doc_IDs_ordered, query_ids, qrels, k)
-			recalls.append(recall)
-			fscore = self.evaluator.meanFscore(
-				doc_IDs_ordered, query_ids, qrels, k)
-			fscores.append(fscore)
-			print("Precision, Recall and F-score @ " +
-				str(k) + " : " + str(precision) + ", " + str(recall) +
-				", " + str(fscore))
-			MAP = self.evaluator.meanAveragePrecision(
-				doc_IDs_ordered, query_ids, qrels, k)
-			MAPs.append(MAP)
-			nDCG = self.evaluator.meanNDCG(
-				doc_IDs_ordered, query_ids, qrels, k)
-			nDCGs.append(nDCG)
-			print("MAP, nDCG @ " +
-				str(k) + " : " + str(MAP) + ", " + str(nDCG))
-
-		# Plot the metrics and save plot
-		plt.plot(range(1, 11), precisions, label="Precision")
-		plt.plot(range(1, 11), recalls, label="Recall")
-		plt.plot(range(1, 11), fscores, label="F-Score")
-		plt.plot(range(1, 11), MAPs, label="MAP")
-		plt.plot(range(1, 11), nDCGs, label="nDCG")
-		plt.legend()
-		plt.title("Evaluation Metrics - Cranfield Dataset")
-		plt.xlabel("k")
-		plt.savefig(args.out_folder + "eval_plot.png")
-
-
-	def handleCustomQuery(self):
-		"""
-		Take a custom query as input and return top five relevant documents
-		"""
-		# print('Enter query id below')
-		# q=int(input())
-		q=1
-		#Get query
-		# print("Enter query below")
-		# query = input()
-		# Process documents
-
-
-		# print(processedQuery)
-
-		# Read queries
-		queries_json = json.load(open(args.dataset + "cran_queries.json", 'r'))[:]
-		query_ids, queries = [item["query number"] for item in queries_json], \
-								[item["query"] for item in queries_json]
-		query=queries[q-1]
-		# print(query)
-		processedQuery = self.preprocessQueries([query])[0]
-		print(processedQuery)
-		# Process documents
-		# processedDocs = self.preprocessDocs(docs)
-		try:
-			with open("stopword_removed.txt", "rb") as fp:  # Unpickling to avoid reruning the code
-				processedDocs = pickle.load(fp)
-		except FileNotFoundError:
-            # docs_json = json.load(open(args.dataset + "cran_docs.json", 'r'))[:]
-            # doc_ids, docs = [item["id"] for item in docs_json], \[item["body"] for item in docs_json]
-            # Read documents
-
-
-			processedDocs = self.preprocessDocs(docs)
-			with open("stopword_removed.txt", "wb") as fp:  # Pickling
-				pickle.dump(processedDocs, fp)
-		if self.args.custom == "lsa":
-			doc_IDs_ordered = l_sa(query,processedDocs)
-
-		if self.args.custom == "plsa":
-			P_lsa=Problsa()
-			doc_IDs_ordered = P_lsa.problsa(60,query,processedDocs)
-		if self.args.custom == "s_bert":
-			doc_IDs_ordered = s_bert(query,processedDocs)
-
-		if self.args.custom == "vsm":
-			self.informationRetriever.buildIndex(processedDocs, doc_ids)
-			doc_IDs_ordered = self.informationRetriever.rank([processedQuery])[0]
-
-		print(doc_IDs_ordered[0])
-		# Read relevance judements
-		qrels = json.load(open(args.dataset + "cran_qrels.json", 'r'))[:]
-
-		# Calculate precision, recall, f-score, MAP and nDCG for k = 1 to 10
-		precisions, recalls, fscores, MAPs, nDCGs = [], [], [], [], []
-		for k in range(1, 11):
-			precision = self.evaluator.meanPrecision(
-				doc_IDs_ordered, query_ids, qrels, k)
-			precisions.append(precision)
-			recall = self.evaluator.meanRecall(
-				doc_IDs_ordered, query_ids, qrels, k)
-			recalls.append(recall)
-			fscore = self.evaluator.meanFscore(
-				doc_IDs_ordered, query_ids, qrels, k)
-			fscores.append(fscore)
-			print("Precision, Recall and F-score @ " +
-				str(k) + " : " + str(precision) + ", " + str(recall) +
-				", " + str(fscore))
-			MAP = self.evaluator.meanAveragePrecision(
-				doc_IDs_ordered, query_ids, qrels, k)
-			MAPs.append(MAP)
-			nDCG = self.evaluator.meanNDCG(
-				doc_IDs_ordered, query_ids, qrels, k)
-			nDCGs.append(nDCG)
-			print("MAP, nDCG @ " +
-				str(k) + " : " + str(MAP) + ", " + str(nDCG))
-
-		# Plot the metrics and save plot
-		plt.plot(range(1, 11), precisions, label="Precision")
-		plt.plot(range(1, 11), recalls, label="Recall")
-		plt.plot(range(1, 11), fscores, label="F-Score")
-		plt.plot(range(1, 11), MAPs, label="MAP")
-		plt.plot(range(1, 11), nDCGs, label="nDCG")
-		plt.legend()
-		plt.title("Evaluation Metrics - Cranfield Dataset")
-		plt.xlabel("k")
-		plt.savefig(args.out_folder + "eval_plot.png")
-		plt.plot()
-
+	def probabLSA(self,processedQueries,processedDocs,query_ids,qrels):
+		plsa_Model=Problsa()
+		doc_IDs_ordered = []
+		for query in processedQueries:
+			doc_IDs_ordered.append(plsa_Model.problsa(60,query,processedDocs))
+		self.metrices(doc_IDs_ordered,query_ids,qrels,'Evaluation of Probabilistic LSA')
 
 	def PROBLSA(self):
 		"""
@@ -363,6 +250,104 @@ class SearchEngine:
 
 		lsa.plot_metrics(precisions, recalls, fscores, MAPs, nDCGs)
 
+	def evaluateDataset(self):
+		"""
+		- preprocesses the queries and documents, stores in output folder
+		- invokes the IR system
+		- evaluates precision, recall, fscore, nDCG and MAP
+		  for all queries in the Cranfield dataset
+		- produces graphs of the evaluation metrics in the output folder
+		"""
+
+		# Read documents
+		docs_json = json.load(open(args.dataset + "cran_docs.json", 'r'))[:]
+		doc_ids, docs = [item["id"] for item in docs_json], \
+								[item["body"] for item in docs_json]
+		# Read queries
+		queries_json = json.load(open(args.dataset + "cran_queries.json", 'r'))[:]
+		query_ids, queries = [item["query number"] for item in queries_json], \
+								[item["query"] for item in queries_json]
+		# Process queries
+		qrels = json.load(open(args.dataset + "cran_qrels.json", 'r'))[:]
+
+		try:
+			with open("pickle/cranfield/query.txt", "rb") as fp:  # Unpickling to avoid reruning the code
+				processedQueries = pickle.load(fp)
+		except EOFError:
+			processedQueries = self.preprocessDocs(queries)
+			with open("pickle/cranfield/query.txt", "wb") as fp:  # Pickling
+				pickle.dump(processedQueries, fp)
+
+		try:
+			with open("pickle/cranfield/dataprocessed.txt", "rb") as fp:  # Unpickling to avoid reruning the code
+				processedDocs = pickle.load(fp)
+		except EOFError:
+			processedDocs = self.preprocessDocs(docs)
+			with open("pickle/cranfield/dataprocessed.txt", "wb") as fp:  # Pickling
+				pickle.dump(processedDocs, fp)
+
+		if self.args.eval == "lsa":
+			doc_IDs_ordered=[]
+			for queri in processedQueries:
+				doc_IDs_ordered.append(l_sa(queri,processedDocs))
+		elif self.args.eval == "plsa":
+			self.probabLSA(processedQueries,processedDocs,query_ids,qrels)
+			
+		elif self.args.eval == "sbert":
+			self.Sbert(processedQueries,processedDocs,query_ids,qrels)
+
+		elif self.args.eval =="vsm":
+			self.informationRetriever.buildIndex(processedDocs, doc_ids)
+			doc_IDs_ordered = self.informationRetriever.rank(processedQueries)
+			self.metrices(doc_IDs_ordered,query_ids,qrels,'Evaluation of Vector Space Model')
+
+
+	def handleCustomQuery(self):
+		docs_json = json.load(open(args.dataset + "cran_docs.json", 'r'))[:]
+		doc_ids, docs = [item["id"] for item in docs_json], \
+        						[item["body"] for item in docs_json]
+
+		# Read queries
+		queries_json = json.load(open(args.dataset + "cran_queries.json", 'r'))[:]
+		query_ids, queries = [item["query number"] for item in queries_json], \
+								[item["query"] for item in queries_json]
+
+
+
+		print('Enter Query Number Below\n')
+		s=int(input())
+		query=queries[s]
+		processedQuery = self.preprocessQueries([query])[0]
+		try:
+			with open("stopword_removed.txt", "rb") as fp:  # Unpickling to avoid reruning the code
+				processedDocs = pickle.load(fp)
+		except FileNotFoundError:
+			processedDocs = self.preprocessDocs(docs)
+			with open("stopword_removed.txt", "wb") as fp:  # Pickling
+				pickle.dump(processedDocs, fp)
+
+
+		if self.args.custom == "lsa":
+			doc_IDs_ordered = l_sa(processedQuery,processedDocs)
+
+		if self.args.custom == "plsa":
+			P_lsa=Problsa()
+			doc_IDs_ordered = P_lsa.problsa(60,processedQuery,processedDocs)
+
+		if self.args.custom == "sbert":
+			doc_IDs_ordered = s_bert(processedQuery[0],processedDocs)
+
+		if self.args.custom == "vsm":
+			self.informationRetriever.buildIndex(processedDocs, doc_ids)
+			doc_IDs_ordered = self.informationRetriever.rank([processedQuery])[0]
+
+		print("\nTop five document IDs : ")
+		for id_ in doc_IDs_ordered[:5]:
+			print(id_)
+
+
+
+
 if __name__ == "__main__":
 
 	# Create an argument parser
@@ -373,11 +358,11 @@ if __name__ == "__main__":
 	parser.add_argument('-out_folder', default = "output/",help = "Path to output folder")
 	parser.add_argument('-segmenter', default = "punkt",help = "Sentence Segmenter Type [naive|punkt]")
 	parser.add_argument('-tokenizer',  default = "ptb",help = "Tokenizer Type [naive|ptb]")
+	parser.add_argument('-eval',  default = "lsa",help = "evaluate dataset [lsa|plsa|s_bert|vsm]")
 	parser.add_argument('-custom',  default = "lsa",help = "Take custom query as input [lsa|plsa|s_bert|vsm]")
 	parser.add_argument('-plsa', action = "store_true",help = "grid search on plsa")
 	parser.add_argument('-lsa', action = "store_true",help = "grid search on lsa")
-	parser.add_argument('-eval',  default = "lsa", action = "store_true",help = "evaluate dataset [lsa|plsa|s_bert|vsm]")
-
+	
 	# Parse the input arguments
 	args = parser.parse_args()
 
@@ -385,13 +370,10 @@ if __name__ == "__main__":
 	searchEngine = SearchEngine(args)
 
 	# Either handle query from user or evaluate on the complete dataset
-	if args.custom:
-		searchEngine.handleCustomQuery()
-	elif args.plsa:
-		searchEngine.PROBLSA()
-	elif args.lsa:
-		searchEngine.L_SA()
-	elif args.eval:
+
+	if args.eval:
 		searchEngine.evaluateDataset()
-	else :
+		# if args.eval=='sbert':
+		# 	searchEngine.Sbert()
+	if args.custom:
 		searchEngine.handleCustomQuery()
