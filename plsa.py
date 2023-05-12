@@ -32,6 +32,7 @@ class p_lsa(object):
         self.vocab_list = None
 
     def PLSA(self, number_of_topics, max_iter,query,docs):
+        docs=docs[:10]
 
         '''
         Model topics.
@@ -56,7 +57,7 @@ class p_lsa(object):
                 pickle.dump(vocab_list, fp)
 
         docs=[' '.join(np.concatenate(item)) if item else '' for item in docs]
-        print(docs)
+        # print(docs)
         vectorizer = TfidfVectorizer()
         X = vectorizer.fit_transform(docs)
         # Step 2: Create a term-document matrix
@@ -132,13 +133,15 @@ class p_lsa(object):
             print("M step:")
             # update P(w | z)
             for z in range(number_of_topics):
-                for q,w_index in range(vocabulary_size):
+                for w_index in range(vocabulary_size):
                     s = 0
                     for d_index in range(len(docs)):
                         count = term_doc_matrix[d_index][w_index]
                         s = s + count * self.topic_prob[d_index, w_index, z]
-                    print(w_index,s)
-                    self.topic_word_prob[z][w_index] = s
+                    # print(w_index)
+                        print(s,type(s),self.topic_prob[d_index,w_index,z])
+                    self.topic_word_prob[z][w_index] = s.toarray()
+                    print(w_index)
                 normalize(self.topic_word_prob[z])
 
             # update P(z | d)
@@ -148,7 +151,7 @@ class p_lsa(object):
                     for w_index in range(vocabulary_size):
                         count = term_doc_matrix[d_index][w_index]
                         s = s + count * self.topic_prob[d_index, w_index, z]
-                    self.document_topic_prob[d_index][z] = s
+                    self.document_topic_prob[d_index][z] = float(s[0])
 #                print self.document_topic_prob[d_index]
 #                assert(sum(self.document_topic_prob[d_index]) != 0)
                 normalize(self.document_topic_prob[d_index])
